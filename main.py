@@ -1,9 +1,14 @@
 import os
 import uuid
 import subprocess
+import logging
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 import shutil
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -29,15 +34,15 @@ async def transcribe(file: UploadFile = File(...)):
         subprocess.run(convert_command, check=True)
 
         # Debug information
-        app.logger.info(f"Looking for whisper binary at: {WHISPER_BINARY}")
+        logger.info(f"Looking for whisper binary at: {WHISPER_BINARY}")
         if os.path.exists(WHISPER_BINARY):
-            app.logger.info(f"Binary exists")
+            logger.info(f"Binary exists")
         else:
-            app.logger.info(f"Binary not found")
+            logger.info(f"Binary not found")
             # Try to list what's in the directory
             dir_path = os.path.dirname(WHISPER_BINARY)
             if os.path.exists(dir_path):
-                app.logger.info(f"Contents of {dir_path}: {os.listdir(dir_path)}")
+                logger.info(f"Contents of {dir_path}: {os.listdir(dir_path)}")
         
         # Run whisper transcription with absolute paths
         whisper_command = [
@@ -63,6 +68,8 @@ async def transcribe(file: UploadFile = File(...)):
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
+        logger.error(f"Error in transcription: {str(e)}")
+        logger.error(error_details)
         return JSONResponse(
             content={"transcript": f"Internal server error:\n{str(e)}\n\nDetails:\n{error_details}"}, 
             status_code=500

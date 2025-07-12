@@ -12,38 +12,27 @@ async def transcribe_audio(file: UploadFile = File(...)):
     original_ext = os.path.splitext(file.filename)[-1]
     temp_input_path = f"audio_input_{uuid.uuid4()}{original_ext}"
     temp_wav_path = f"audio_converted_{uuid.uuid4()}.wav"
-    transcript_path = f"{temp_wav_path}.txt"  # explicitly define the output path
+    transcript_path = f"{temp_wav_path}.txt"
 
-    # Save uploaded file to disk
     with open(temp_input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # Convert any audio to 16kHz mono WAV
+        # Convert input to 16kHz mono WAV
         subprocess.run([
             "ffmpeg", "-y", "-i", temp_input_path,
             "-ar", "16000", "-ac", "1", temp_wav_path
         ], check=True)
 
-        # Run whisper.cpp transcription
+        # Use whisper-cli instead of deprecated main
         result = subprocess.run(
-            [
-                "./whisper.cpp/build/bin/main",
-                "-m", "models/base.en.bin",
-                "-f", temp_wav_path,
-                "-otxt",
-                "-of", transcript_path  # specify exact output location
-            ],
+            ["./whisper.cpp/main", "-m", "./whisper.cpp/models/base.en.bin", "-f", temp_wav_path, "-otxt"],
             capture_output=True,
             text=True,
             timeout=120
         )
 
-        # Optional: Debug output
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
-
-        # Read transcript
+        # Read generated .txt file
         if os.path.exists(transcript_path):
             with open(transcript_path, "r") as f:
                 transcript = f.read()
@@ -51,10 +40,11 @@ async def transcribe_audio(file: UploadFile = File(...)):
             transcript = "Transcription failed or file not found."
 
     except subprocess.CalledProcessError as e:
-        transcript = f"FFmpeg or transcription error:\n{e.stderr}"
+        transcript = f"Transcription subprocess failed:\n{e.stderr}"
     except Exception as e:
         transcript = f"Internal server error:\n{str(e)}"
     finally:
+        # Clean up all temp files
         for path in [temp_input_path, temp_wav_path, transcript_path]:
             if os.path.exists(path):
                 os.remove(path)

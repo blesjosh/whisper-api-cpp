@@ -7,6 +7,12 @@ import uuid
 
 app = FastAPI()
 
+# ✅ Root route to show app is live
+@app.get("/")
+def root():
+    return {"message": "Whisper API is live!"}
+
+# 🎙️ Transcription route
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     temp_filename = f"audio_{uuid.uuid4()}.wav"

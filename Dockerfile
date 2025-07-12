@@ -13,18 +13,14 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# First, copy your FastAPI code
+# Copy your entire app including models and whisper.cpp if already cloned locally
 COPY . .
 
-# Install dependencies
+# Install Python dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Clone and build whisper.cpp (AFTER copying so it's not overwritten)
-RUN git clone https://github.com/ggerganov/whisper.cpp.git \
-    && cd whisper.cpp && make
-
-# Run build script (if needed)
-RUN chmod +x build.sh && ./build.sh
+# Build whisper.cpp
+RUN cd whisper.cpp && make
 
 EXPOSE 10000
 

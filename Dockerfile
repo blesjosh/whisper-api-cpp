@@ -2,30 +2,33 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    python3 \
-    python3-pip \
     ffmpeg \
+    git \
     curl \
-    git
+    cmake \
+    build-essential \
+    python3 \
+    python3-pip
 
-WORKDIR /app
+# Install FastAPI & Uvicorn
+RUN pip3 install fastapi uvicorn python-multipart
 
-# Copy FastAPI app
-COPY . .
+# Clone whisper.cpp
+RUN git clone https://github.com/ggerganov/whisper.cpp.git
 
-# Install Python packages
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Build whisper.cpp
+RUN mkdir -p whisper.cpp/build && cd whisper.cpp/build && cmake .. && make
 
-# Clone and build whisper.cpp
-RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
-    cd whisper.cpp && make
-
-# Download model
+# Download base model
 RUN curl -L -o whisper.cpp/models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/models/ggml-base.en.bin
 
+# Copy app code
+COPY main.py .
+
+# Expose port
 EXPOSE 10000
 
+# Run the server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]

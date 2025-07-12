@@ -27,7 +27,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
         # Transcribe using whisper.cpp (binary is inside whisper.cpp/)
         result = subprocess.run(
-    ["./whisper.cpp/bin/main", "-m", "models/base.en.bin", "-f", temp_wav_path, "-otxt"],
+  ["./whisper.cpp/build/bin/main", "-m", "models/base.en.bin", "-f", temp_wav_path, "-otxt"],
     capture_output=True,
     text=True,
     timeout=120

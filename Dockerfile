@@ -11,19 +11,25 @@ RUN apt-get update && apt-get install -y \
     curl \
     git
 
+# Set work directory
 WORKDIR /app
 
-# Install Python deps
+# Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Download whisper.cpp
+# Clone and build whisper.cpp
 RUN git clone https://github.com/ggerganov/whisper.cpp.git \
-    && cd whisper.cpp \
-    && make \
-    && cp main ../ \
-    && mkdir -p ../models
+    && cd whisper.cpp && make
 
-COPY main.py /app/main.py
+# Copy API code (main.py, build.sh, etc.)
+COPY . .
 
+# Make sure the build script is executable and run it
+RUN chmod +x build.sh && ./build.sh
+
+# Expose port (optional for local testing)
+EXPOSE 10000
+
+# Run the FastAPI app
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]

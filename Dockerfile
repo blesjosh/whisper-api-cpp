@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     git \
     curl \
+    wget \
     cmake \
     build-essential \
     python3 \
@@ -18,18 +19,28 @@ RUN pip3 install fastapi uvicorn python-multipart
 
 # Clone and build whisper.cpp
 RUN git clone https://github.com/ggerganov/whisper.cpp.git
-WORKDIR /app/whisper.cpp/build
-RUN cmake .. && make
-WORKDIR /app
+WORKDIR /app/whisper.cpp
 
-# Download the model
-RUN mkdir -p /app/whisper.cpp/models
-RUN curl -L -o /app/whisper.cpp/models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/models/ggml-base.en.bin
+# Use main branch for latest code
+RUN git checkout main
 
-# Verify the binary exists (this will fail the build if it doesn't)
-RUN ls -la /app/whisper.cpp/build/bin/main && chmod +x /app/whisper.cpp/build/bin/main
+# Build with proper flags
+RUN mkdir -p build && cd build && cmake .. && cmake --build . --config Release
+
+# Create models directory
+RUN mkdir -p models
+
+# Download the model with proper verification
+RUN wget -O models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+
+# Verify model file size (should be >100MB)
+RUN ls -la models/base.en.bin && \
+    file_size=$(stat -c%s "models/base.en.bin") && \
+    echo "Model file size: $file_size bytes" && \
+    if [ "$file_size" -lt 100000000 ]; then echo "Model file too small, download failed"; exit 1; fi
 
 # Copy your app code
+WORKDIR /app
 COPY main.py /app/
 
 EXPOSE 10000

@@ -2,6 +2,7 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set a working directory
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -15,15 +16,21 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip3 install fastapi uvicorn python-multipart
 
-# Clone and build whisper.cpp in /app/whisper.cpp
+# Clone and build whisper.cpp
 RUN git clone https://github.com/ggerganov/whisper.cpp.git
-RUN mkdir -p whisper.cpp/build && cd whisper.cpp/build && cmake .. && make
+WORKDIR /app/whisper.cpp/build
+RUN cmake .. && make
+WORKDIR /app
 
-RUN mkdir -p whisper.cpp/models
-RUN curl -L -o whisper.cpp/models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/models/ggml-base.en.bin
+# Download the model
+RUN mkdir -p /app/whisper.cpp/models
+RUN curl -L -o /app/whisper.cpp/models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/models/ggml-base.en.bin
 
-# Copy your FastAPI code into /app
-COPY main.py /app/main.py
+# Verify the binary exists (this will fail the build if it doesn't)
+RUN ls -la /app/whisper.cpp/build/bin/main && chmod +x /app/whisper.cpp/build/bin/main
+
+# Copy your app code
+COPY main.py /app/
 
 EXPOSE 10000
 

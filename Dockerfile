@@ -13,14 +13,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy your entire app including models and whisper.cpp if already cloned locally
+# Copy FastAPI app
 COPY . .
 
-# Install Python dependencies
+# Install Python packages
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Build whisper.cpp
-RUN cd whisper.cpp && make
+# Clone and build whisper.cpp
+RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
+    cd whisper.cpp && make
+
+# Download model
+RUN curl -L -o whisper.cpp/models/base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/models/ggml-base.en.bin
 
 EXPOSE 10000
 

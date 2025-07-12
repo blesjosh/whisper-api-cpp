@@ -1,52 +1,57 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
-import shutil
-import subprocess
-import os
 import uuid
+import os
+import subprocess
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import shutil
 
 app = FastAPI()
 
-@app.post("/transcribe")
+class TranscriptResponse(BaseModel):
+    transcript: str
+
+@app.post("/transcribe", response_model=TranscriptResponse)
 async def transcribe_audio(file: UploadFile = File(...)):
-    original_ext = os.path.splitext(file.filename)[-1]
-    temp_input_path = f"audio_input_{uuid.uuid4()}{original_ext}"
-    temp_wav_path = f"audio_converted_{uuid.uuid4()}.wav"
-    transcript_path = f"{temp_wav_path}.txt"
-
-    with open(temp_input_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
     try:
-        # Convert input to 16kHz mono WAV
-        subprocess.run([
-            "ffmpeg", "-y", "-i", temp_input_path,
-            "-ar", "16000", "-ac", "1", temp_wav_path
-        ], check=True)
+        # Save the uploaded file
+        input_ext = os.path.splitext(file.filename)[1]
+        input_path = f"audio_input_{uuid.uuid4()}{input_ext}"
+        with open(input_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
 
-        # Use whisper-cli instead of deprecated main
-        result = subprocess.run(
-            ["./whisper.cpp/main", "-m", "./whisper.cpp/models/base.en.bin", "-f", temp_wav_path, "-otxt"],
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
+        # Convert to 16kHz mono WAV using ffmpeg
+        wav_path = f"audio_converted_{uuid.uuid4()}.wav"
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i", input_path,
+            "-ar", "16000",
+            "-ac", "1",
+            "-f", "wav",
+            wav_path
+        ]
+        subprocess.run(ffmpeg_cmd, check=True)
 
-        # Read generated .txt file
-        if os.path.exists(transcript_path):
-            with open(transcript_path, "r") as f:
-                transcript = f.read()
-        else:
-            transcript = "Transcription failed or file not found."
+        # Transcribe using whisper.cpp
+        whisper_cmd = [
+            "./whisper.cpp/bin/main",  # ✅ fixed path
+            "-m", "./whisper.cpp/models/base.en.bin",
+            "-f", wav_path,
+            "-otxt"
+        ]
+        subprocess.run(whisper_cmd, check=True)
 
-    except subprocess.CalledProcessError as e:
-        transcript = f"Transcription subprocess failed:\n{e.stderr}"
+        # Read transcript file
+        txt_file = wav_path.replace(".wav", ".txt")
+        with open(txt_file, "r") as f:
+            transcript = f.read()
+
+        # Clean up
+        os.remove(input_path)
+        os.remove(wav_path)
+        os.remove(txt_file)
+
+        return {"transcript": transcript}
+
     except Exception as e:
-        transcript = f"Internal server error:\n{str(e)}"
-    finally:
-        # Clean up all temp files
-        for path in [temp_input_path, temp_wav_path, transcript_path]:
-            if os.path.exists(path):
-                os.remove(path)
-
-    return JSONResponse({"transcript": transcript})
+        return JSONResponse(status_code=500, content={"transcript": f"Internal server error:\n{str(e)}"})
